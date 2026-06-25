@@ -22,12 +22,11 @@ env/
 *.ipynb_checkpoints
 
 # Node / Next.js
-frontend/node_modules/
-frontend/.next/
-frontend/out/
-frontend/.env
-frontend/.env.local
-frontend/.env.*.local
+app-cognitrack/node_modules/
+app-cognitrack/.next/
+app-cognitrack/out/
+app-cognitrack/.env
+app-cognitrack/.env.*
 
 # Misc
 .DS_Store
