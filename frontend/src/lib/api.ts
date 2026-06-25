@@ -24,14 +24,17 @@ export interface SessionSummary {
   sample_count: number;
 }
 
-export async function analyzeFrame(
+export async function analyzeSegment(
   sessionId: string,
-  frameB64: string
+  videoBlob: Blob
 ): Promise<AnalyzeResult> {
+  const formData = new FormData();
+  formData.append("session_id", sessionId);
+  formData.append("video", videoBlob, "segment.webm");
+
   const res = await fetch(`${BASE}/analyze`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: sessionId, frame: frameB64 }),
+    body: formData,
   });
   if (!res.ok) throw new Error("Analyze failed");
   return res.json();
@@ -45,15 +48,4 @@ export async function fetchSummary(sessionId: string): Promise<SessionSummary> {
   });
   if (!res.ok) throw new Error("Summary failed");
   return res.json();
-}
-
-export function captureFrame(
-  video: HTMLVideoElement,
-  canvas: HTMLCanvasElement
-): string {
-  const ctx = canvas.getContext("2d")!;
-  canvas.width = 224;
-  canvas.height = 224;
-  ctx.drawImage(video, 0, 0, 224, 224);
-  return canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
 }

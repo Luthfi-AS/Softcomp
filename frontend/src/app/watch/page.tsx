@@ -15,7 +15,7 @@ import {
   Zap,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
-import { analyzeFrame, captureFrame, AnalyzeResult } from "@/lib/api";
+import { analyzeSegment, AnalyzeResult } from "@/lib/api";
 import EngagementRing from "@/components/EngagementRing";
 import EmotionBadge from "@/components/EmotionBadge";
 
@@ -62,7 +62,7 @@ export default function WatchPage() {
 
   const [sessionId] = useState(() => uuidv4());
   const [sessionActive, setSessionActive] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [events, setEvents] = useState<StreamEvent[]>([]);
@@ -93,53 +93,65 @@ export default function WatchPage() {
     setCameraState("idle");
   }, []);
 
-  const runAnalysis = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current) return;
-    if (videoRef.current.readyState < 2) return;
-
-    try {
-      const frame = captureFrame(videoRef.current, canvasRef.current);
-      const r = await analyzeFrame(sessionId, frame);
-      setResult(r);
-
-      const now = Date.now();
-      eventTimesRef.current.push(now);
-
-      setEvents((prev) => {
-        const next: StreamEvent[] = [
-          {
-            id: uuidv4(),
-            text: `Emotion detected: ${r.emotion}`,
-            age: relativeTime(0),
-          },
-          ...prev.map((e, i) => ({
-            ...e,
-            age: relativeTime(Date.now() - (eventTimesRef.current[eventTimesRef.current.length - 2 - i] ?? Date.now())),
-          })),
-        ].slice(0, 6);
-        return next;
-      });
-    } catch {
-      // silent
-    }
-  }, [sessionId]);
-
   const startSession = useCallback(() => {
-    if (cameraState !== "active") return;
+    if (cameraState !== "active" || !streamRef.current) return;
     setSessionActive(true);
-    runAnalysis();
-    intervalRef.current = setInterval(runAnalysis, 4000);
-  }, [cameraState, runAnalysis]);
+
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(streamRef.current);
+    } catch (e) {
+      console.error("MediaRecorder init failed", e);
+      return;
+    }
+    
+    recorder.ondataavailable = async (e) => {
+      if (e.data && e.data.size > 0) {
+        try {
+          const r = await analyzeSegment(sessionId, e.data);
+          setResult(r);
+
+          const now = Date.now();
+          eventTimesRef.current.push(now);
+
+          setEvents((prev) => {
+            const next: StreamEvent[] = [
+              {
+                id: uuidv4(),
+                text: `Emotion detected: ${r.emotion}`,
+                age: relativeTime(0),
+              },
+              ...prev.map((ev, i) => ({
+                ...ev,
+                age: relativeTime(Date.now() - (eventTimesRef.current[eventTimesRef.current.length - 2 - i] ?? Date.now())),
+              })),
+            ].slice(0, 6);
+            return next;
+          });
+        } catch {
+          // silent
+        }
+      }
+    };
+
+    recorder.start(4000); // Record chunks of 4 seconds
+    mediaRecorderRef.current = recorder;
+  }, [cameraState, sessionId]);
 
   const stopSession = useCallback(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
     setSessionActive(false);
-    router.push(`/summary?sid=${sessionId}`);
-  }, [router, sessionId]);
+    stopCamera();
+    router.push("/");
+  }, [router, stopCamera]);
 
   useEffect(() => {
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
@@ -245,7 +257,7 @@ export default function WatchPage() {
                     className="flex items-center gap-2 bg-red-500/80 text-white font-semibold text-sm px-4 py-2 rounded-lg hover:bg-red-500 transition-colors"
                   >
                     <Square className="w-4 h-4" />
-                    End & Get Summary
+                    End Session
                   </button>
                 )}
                 {cameraState === "active" && (
