@@ -129,12 +129,11 @@ export default function WatchPage() {
             return next;
           });
         } catch {
-          // silent
         }
       }
     };
 
-    recorder.start(4000); // Record chunks of 4 seconds
+    recorder.start(4000);
     mediaRecorderRef.current = recorder;
   }, [cameraState, sessionId]);
 

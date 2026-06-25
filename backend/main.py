@@ -88,7 +88,7 @@ try:
     if os.path.isdir(models_dir):
         for i in range(1, 27):
             model_path = os.path.join(models_dir, f"best_model_fold_{i}.pth")
-            if os.path.exists(model_path) and os.path.getsize(model_path) > 1000: # not LFS pointer
+            if os.path.exists(model_path) and os.path.getsize(model_path) > 1000:
                 model = TightHybridGA(num_classes=7).to(DEVICE)
                 try:
                     model.load_state_dict(torch.load(model_path, map_location=DEVICE))
@@ -122,7 +122,7 @@ app = FastAPI(title="CogniTrack Backend", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"], # Allow all origins for Vercel deployment
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -235,19 +235,16 @@ def process_video_segment(video_bytes: bytes) -> dict:
             "engagement": _compute_engagement(probs),
         }
 
-    # 1. Detect & Crop Face on all frames
     cropped_frames = [_crop_face(f) for f in frames]
-
-    # 2. Spotting Micro-Expression (Find onset and apex based on motion magnitude)
     gray_frames = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY) for f in cropped_frames]
+
     
-    # Calculate consecutive differences to find the peak motion
     motions = []
     for i in range(1, len(gray_frames)):
         diff = cv2.absdiff(gray_frames[i], gray_frames[i-1])
         motions.append(np.sum(diff))
     
-    if np.max(motions) < 1000: # Arbitrary threshold, if too small, fallback
+    if np.max(motions) < 1000:
         onset_idx = 0
         apex_idx = len(frames) - 1
     else:
@@ -262,10 +259,8 @@ def process_video_segment(video_bytes: bytes) -> dict:
     if onset_img.shape != apex_img.shape:
         apex_img = cv2.resize(apex_img, (onset_img.shape[1], onset_img.shape[0]))
 
-    # 3. Compute optical flow
     flow_img = compute_optical_flow(onset_img, apex_img)
 
-    # 4. Infer using ensemble
     tensor = EVAL_TRANSFORM(flow_img).unsqueeze(0).to(DEVICE)
     
     ensemble_probs = []
