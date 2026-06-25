@@ -15,9 +15,9 @@ import {
   Zap,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
-import { analyzeSegment, AnalyzeResult } from "@/lib/api";
-import EngagementRing from "@/components/EngagementRing";
-import EmotionBadge from "@/components/EmotionBadge";
+import { analyzeSegment, AnalyzeResult } from "../../lib/api";
+import EngagementRing from "../../components/EngagementRing";
+import EmotionBadge from "../../components/EmotionBadge";
 
 function toEmbedUrl(raw: string): string | null {
   try {
